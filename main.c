@@ -7,6 +7,9 @@
 #include <netinet/ip.h>
 #include <arpa/inet.h>
 #include "cidr_trie.h"
+#include <signal.h>
+
+volatile sig_atomic_t running = 1;
 
 static int packet_handler(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                           struct nfq_data *nfa, void *data)
@@ -51,10 +54,21 @@ static int packet_handler(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
     return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, 0, NULL);
 }
 
+struct nfq_handle *h;
+struct nfq_q_handle *qh;
+
+void handle_interrupt(int signal) {
+    system("sudo nft flush ruleset");
+    cleanup();
+    nfq_destroy_queue(qh);
+    nfq_close(h);
+    printf("\nCleanup complete\n");
+    running = 0;
+}
+
 int main()
 {
-    struct nfq_handle *h;
-    struct nfq_q_handle *qh;
+    signal(SIGINT, handle_interrupt);
     int fd;
     int rv;
     char buf[4096] __attribute__((aligned));
@@ -99,7 +113,6 @@ int main()
         nfq_handle_packet(h, buf, rv);
     }
     cleanup();
-
     nfq_destroy_queue(qh);
     nfq_close(h);
 
