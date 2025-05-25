@@ -8,22 +8,20 @@
 #include <arpa/inet.h>
 #include "cidr_trie.h"
 #include <signal.h>
+#include "suricata_parser.h"
 
 volatile sig_atomic_t running = 1;
 
 static int packet_handler(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                           struct nfq_data *nfa, void *data)
 {
+    if (!running) return 0;
+
     struct nfqnl_msg_packet_hdr *ph;
     unsigned char *payload;
     int payload_len;
 
     ph = nfq_get_msg_packet_hdr(nfa);
-    // if (ph)
-    // {
-    //     // from network byte order to host byte order
-    //     printf("Packet ID: %u\n", ntohl(ph->packet_id));
-    // }
 
     payload_len = nfq_get_payload(nfa, &payload);
     if (payload_len >= 0)
@@ -34,22 +32,15 @@ static int packet_handler(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             src_addr.s_addr = ip_header->saddr;
             dst_addr.s_addr = ip_header->daddr;
 
-            printf("IPv4 src: %s\n", inet_ntoa(src_addr));
-            printf("IPv4 dst: %s\n", inet_ntoa(dst_addr));
             is_dangeorus_ip(inet_ntoa(src_addr));
         } else {
             printf("Non IPv4 packet\n");
         }
-
-        // printf("Payload (%d bytes):\n", payload_len);
-        // for (int i = 0; i < payload_len; ++i)
-        // {
-        //     printf("%02x ", payload[i]);
-        //     if ((i + 1) % 16 == 0)
-        //         printf("\n");
-        // }
-        printf("\n\n");
     }
+
+    packet_t packet;
+    packet = payload_to_packet(payload, payload_len);
+    process_packet(&packet);
 
     return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, 0, NULL);
 }
@@ -58,20 +49,32 @@ struct nfq_handle *h;
 struct nfq_q_handle *qh;
 
 void handle_interrupt(int signal) {
+    running = 0;
+    printf("\nShutting down\n");
+
     system("sudo nft flush ruleset");
-    cleanup();
     nfq_destroy_queue(qh);
     nfq_close(h);
-    printf("\nCleanup complete\n");
-    running = 0;
+    cleanup();
+    cleanup_suricata();
+
+    printf("Cleanup complete\n");
 }
 
 int main()
 {
     signal(SIGINT, handle_interrupt);
+    // signal(SIGSEGV, handle_interrupt);
     int fd;
     int rv;
     char buf[4096] __attribute__((aligned));
+
+    init();
+    init_suricata_rules();
+
+    system("sudo nft add table inet myfilter");
+    system("sudo nft add chain inet myfilter input  { type filter hook input priority 0 \\; }");
+    system("sudo nft add rule inet myfilter input queue num 0");
 
     h = nfq_open();
     if (!h)
@@ -106,15 +109,11 @@ int main()
     }
 
     fd = nfq_fd(h);
-
-    init();
-    while ((rv = recv(fd, buf, sizeof(buf), 0)) && rv >= 0)
+    while ((rv = recv(fd, buf, sizeof(buf), 0)) && running)
     {
-        nfq_handle_packet(h, buf, rv);
+        if (rv < 0) perror("Received <0 bytes (recv error)\n");
+        else nfq_handle_packet(h, buf, rv);
     }
-    cleanup();
-    nfq_destroy_queue(qh);
-    nfq_close(h);
 
     return 0;
 }

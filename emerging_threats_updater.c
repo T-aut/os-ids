@@ -18,19 +18,14 @@ void trim(char *str) {
     end[1] = '\0';
 }
 
-char** update_ip_set(char** cidrs, int MAX_SIZE) {
-    system("sudo nft flush ruleset");
-    system("wget -P /tmp/ https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt");
+char** update_ip_set(char** cidrs, int MAX_SIZE, int* length) {
+    system("[ -f /tmp/emerging-Block-IPs.txt ] || wget -P /tmp/ https://rules.emergingthreats.net/fwrules/emerging-Block-IPs.txt");
 
     FILE *fp = fopen("/tmp/emerging-Block-IPs.txt", "r");
     if (!fp) {
         perror("fopen");
         return NULL;
     }
-
-    system("sudo nft add table inet myfilter");
-    system("sudo nft add chain inet myfilter input  { type filter hook input priority 0 \\; }");
-    system("sudo nft add rule inet myfilter input queue num 0");
 
     // TODO: deal with rev_version
 
@@ -55,6 +50,6 @@ char** update_ip_set(char** cidrs, int MAX_SIZE) {
     }
 
     fclose(fp);
-
+    *length = index;
     return cidrs;
 }
