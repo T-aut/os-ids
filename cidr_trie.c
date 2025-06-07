@@ -5,6 +5,8 @@
 #include <arpa/inet.h>
 #include "emerging_threats_updater.h"
 
+int matched_count = 0;
+
 // Trie node structure
 typedef struct TrieNode
 {
@@ -133,12 +135,20 @@ void is_dangeorus_ip(char *input_ip)
     uint32_t ip;
     if (ip_to_uint32(input_ip, &ip))
     {
-        if (match_ip(root, ip)) printf("%s MATCHED (MALICIOUS)", input_ip);
+        if (match_ip(root, ip)) {
+            printf("%s MATCHED (MALICIOUS)\n", input_ip);
+            matched_count++;
+        }
     }
     else
     {
         fprintf(stderr, "Invalid IP: %s\n", input_ip);
     }
+}
+
+int get_matched_ip_count()
+{
+    return matched_count;
 }
 
 void cleanup()

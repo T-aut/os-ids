@@ -36,6 +36,8 @@ typedef struct
 
 rule_t rules[MAX_RULES];
 int rule_count = 0;
+int matched_content_count = 0;
+int matched_but_no_content_count = 0;
 
 char *str_trim(char *s)
 {
@@ -178,9 +180,9 @@ void parse_rule_line(char *line)
 // Match helper functions
 bool str_ip_match(const char *rule_ip, const char *pkt_ip)
 {
-    if (strcmp(rule_ip, "$HOME_NET") == 0)
+    if (strstr(rule_ip, "$HOME_NET"))
         return strcmp(pkt_ip, HOME_NET) == 0;
-    if (strcmp(rule_ip, "$EXTERNAL_NET") == 0)
+    if (strstr(rule_ip, "$EXTERNAL_NET"))
         return strcmp(pkt_ip, HOME_NET) != 0; // anything but home network
     return strcmp(rule_ip, "any") == 0 || strcmp(rule_ip, pkt_ip) == 0;
 }
@@ -251,12 +253,16 @@ void process_packet(packet_t *pkt)
         if (strcmp(r->direction, "->") == 0)
         {
             if (!str_ip_match(r->src_ip, pkt->src_ip))
+                // printf("Source doesnt match\t%s<->%s\n", r->src_ip, pkt->src_ip);
                 continue;
             if (!str_ip_match(r->dst_ip, pkt->dst_ip))
+                // printf("Destination doesnt match\t%s<->%s\n", r->dst_ip, pkt->dst_ip);
                 continue;
             if (!str_port_match(r->src_port, pkt->src_port))
+                // printf("Source port doesnt match\t%s<->%d\n", r->src_port, pkt->src_port);
                 continue;
             if (!str_port_match(r->dst_port, pkt->dst_port))
+                // printf("Destination port doesnt match\t%s<->%d\n", r->dst_port, pkt->dst_port);
                 continue;
         }
         else if (strcmp(r->direction, "<>") == 0)
@@ -269,10 +275,13 @@ void process_packet(packet_t *pkt)
                 continue;
         }
 
+        // printf("Packet passed filters, matching content\n");
+        matched_but_no_content_count++;
         // TODO: payload match currently just dumps everything to bytes and does a check via memmem
         if (match_payload(r, pkt->payload, pkt->payload_len))
         {
             printf("[ALERT] %s\nMetadata: %s\n", r->msg, r->metadata);
+            matched_content_count++;
         }
     }
 }
@@ -350,6 +359,14 @@ packet_t payload_to_packet(unsigned char *data, int len)
     }
 
     return pkt;
+}
+
+int get_matched_count() {
+    return matched_content_count;
+}
+
+int get_matched_but_no_content_count() {
+    return matched_but_no_content_count;
 }
 
 void cleanup_suricata() {

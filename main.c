@@ -11,6 +11,7 @@
 #include "suricata_parser.h"
 
 volatile sig_atomic_t running = 1;
+int total_packets_processed = 0;
 
 static int packet_handler(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                           struct nfq_data *nfa, void *data)
@@ -33,14 +34,16 @@ static int packet_handler(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             dst_addr.s_addr = ip_header->daddr;
 
             is_dangeorus_ip(inet_ntoa(src_addr));
-        } else {
-            printf("Non IPv4 packet\n");
-        }
+        } 
+        // else {
+        //     printf("Non IPv4 packet\n");
+        // }
     }
 
     packet_t packet;
     packet = payload_to_packet(payload, payload_len);
     process_packet(&packet);
+    total_packets_processed++;
 
     return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, 0, NULL);
 }
@@ -51,6 +54,11 @@ struct nfq_q_handle *qh;
 void handle_interrupt(int signal) {
     running = 0;
     printf("\nShutting down\n");
+
+    printf("Total packets processed: %d\n", total_packets_processed);
+    printf("Matched ip count: %d\n", get_matched_ip_count());
+    printf("Matched suricata, but no content: %d\n", get_matched_but_no_content_count());
+    printf("Matched suricata: %d\n", get_matched_count());
 
     system("sudo nft flush ruleset");
     nfq_destroy_queue(qh);
@@ -73,7 +81,10 @@ int main()
     init_suricata_rules();
 
     system("sudo nft add table inet myfilter");
+    system("sudo nft add chain inet myfilter prerouting { type filter hook prerouting priority 0 \\; }");
     system("sudo nft add chain inet myfilter input  { type filter hook input priority 0 \\; }");
+
+    system("sudo nft add rule inet myfilter prerouting queue num 0");
     system("sudo nft add rule inet myfilter input queue num 0");
 
     h = nfq_open();

@@ -20,11 +20,9 @@ if response.status_code == 200:
             total +=1
             continue
         if any(stripped.startswith(keyword) for keyword in valid_starts):
-            # if (count % 100 == 0):
-            #     print(stripped)
-            #     print("\n")
-            if ('<>' in stripped):
-                print("<> direction")
+            if (count % 100 == 0):
+                print(stripped)
+                print("\n")
             total +=1
             count += 1
     print(f"Number of stateless, uncommented rules: {count}/{total}")

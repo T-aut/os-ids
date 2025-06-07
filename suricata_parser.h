@@ -11,5 +11,7 @@ typedef struct
 
 void init_suricata_rules();
 void process_packet(packet_t *pkt);
+int get_matched_count();
+int get_matched_but_no_content_count();
 void cleanup_suricata();
 packet_t payload_to_packet(unsigned char *data, int len);

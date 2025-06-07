@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include <ctype.h>
 
-int rev_version = 0;
-
 void trim(char *str) {
     char *end;
 
