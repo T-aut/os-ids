@@ -136,7 +136,7 @@ void is_dangeorus_ip(char *input_ip)
     if (ip_to_uint32(input_ip, &ip))
     {
         if (match_ip(root, ip)) {
-            printf("%s MATCHED (MALICIOUS)\n", input_ip);
+            printf("[ALERT] Potentially malicious IP matched: %s\n", input_ip);
             matched_count++;
         }
     }

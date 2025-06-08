@@ -9,9 +9,11 @@
 #include "cidr_trie.h"
 #include <signal.h>
 #include "suricata_parser.h"
+#include <time.h>
 
 volatile sig_atomic_t running = 1;
 int total_packets_processed = 0;
+FILE *performance_log;
 
 static int packet_handler(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
                           struct nfq_data *nfa, void *data)
@@ -40,12 +42,29 @@ static int packet_handler(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
         // }
     }
 
-    packet_t packet;
-    packet = payload_to_packet(payload, payload_len);
-    process_packet(&packet);
+    // packet_t packet;
+    // packet = payload_to_packet(payload, payload_len);
+    // process_packet(&packet);
     total_packets_processed++;
 
     return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, 0, NULL);
+}
+
+void start_performance_metrics() {
+    performance_log = fopen("performance.csv", "w");
+    if (!performance_log) {
+        perror("Failed to open performance_log.csv");
+        exit(1);
+    }
+    fprintf(performance_log, "packet_index,duration_micro\n");
+}
+
+void log_packet_time(int packet_index, double duration_micro) {
+    fprintf(performance_log, "%d,%.2f\n", packet_index, duration_micro);
+}
+
+void end_performance_metrics() {
+    fclose(performance_log);
 }
 
 struct nfq_handle *h;
@@ -65,6 +84,7 @@ void handle_interrupt(int signal) {
     nfq_close(h);
     cleanup();
     cleanup_suricata();
+    end_performance_metrics();
 
     printf("Cleanup complete\n");
 }
@@ -72,13 +92,13 @@ void handle_interrupt(int signal) {
 int main()
 {
     signal(SIGINT, handle_interrupt);
-    // signal(SIGSEGV, handle_interrupt);
     int fd;
     int rv;
     char buf[4096] __attribute__((aligned));
 
     init();
     init_suricata_rules();
+    start_performance_metrics();
 
     system("sudo nft add table inet myfilter");
     system("sudo nft add chain inet myfilter prerouting { type filter hook prerouting priority 0 \\; }");
@@ -123,7 +143,18 @@ int main()
     while ((rv = recv(fd, buf, sizeof(buf), 0)) && running)
     {
         if (rv < 0) perror("Received <0 bytes (recv error)\n");
-        else nfq_handle_packet(h, buf, rv);
+        else {
+            struct timespec start, end;
+            clock_gettime(CLOCK_MONOTONIC, &start);
+
+            nfq_handle_packet(h, buf, rv);
+
+            clock_gettime(CLOCK_MONOTONIC, &end);
+            double duration_us = (end.tv_sec - start.tv_sec) * 1e6 +
+                                (end.tv_nsec - start.tv_nsec) / 1e3;
+
+            log_packet_time(total_packets_processed, duration_us);
+        }
     }
 
     return 0;
