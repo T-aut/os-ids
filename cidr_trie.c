@@ -4,6 +4,8 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include "emerging_threats_updater.h"
+#include "logger.h"
+#include <stdbool.h>
 
 int matched_count = 0;
 
@@ -130,20 +132,22 @@ void init()
     printf("\n[IP_BLOCKLIST]: Initalized %d CIDR ranges\n", count);
 }
 
-void is_dangeorus_ip(char *input_ip)
+bool is_dangeorus_ip(char *input_ip)
 {
     uint32_t ip;
     if (ip_to_uint32(input_ip, &ip))
     {
         if (match_ip(root, ip)) {
-            printf("[ALERT] Potentially malicious IP matched: %s\n", input_ip);
+            log_info("[ALERT] Potentially malicious IP matched: %s", input_ip);
             matched_count++;
+            return true;
         }
     }
     else
     {
         fprintf(stderr, "Invalid IP: %s\n", input_ip);
     }
+    return false;
 }
 
 int get_matched_ip_count()

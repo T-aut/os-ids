@@ -13,7 +13,7 @@ sudo apt install libnetfilter-queue-dev
 To compile the code:
 
 ```
-gcc -o os-ids main.c cidr_trie.c emerging_threats_updater.c suricata_parser.c -lnetfilter_queue
+gcc -o os-ids main.c logger.c cidr_trie.c emerging_threats_updater.c suricata_parser.c -lnetfilter_queue
 ```
 
 ### IPTABLES setup 

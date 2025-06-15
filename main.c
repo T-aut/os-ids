@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 #include "cidr_trie.h"
 #include <signal.h>
-#include "suricata_parser.h"
+#include "suricata_interpreter.h"
 #include <time.h>
 
 volatile sig_atomic_t running = 1;
@@ -35,16 +35,16 @@ static int packet_handler(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg,
             src_addr.s_addr = ip_header->saddr;
             dst_addr.s_addr = ip_header->daddr;
 
-            is_dangeorus_ip(inet_ntoa(src_addr));
+            if (is_dangeorus_ip(inet_ntoa(src_addr))) {
+                total_packets_processed++;
+                return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_DROP, 0, NULL);
+            }
         } 
-        // else {
-        //     printf("Non IPv4 packet\n");
-        // }
     }
 
-    // packet_t packet;
-    // packet = payload_to_packet(payload, payload_len);
-    // process_packet(&packet);
+    packet_t packet;
+    packet = payload_to_packet(payload, payload_len);
+    process_packet(&packet);
     total_packets_processed++;
 
     return nfq_set_verdict(qh, ntohl(ph->packet_id), NF_ACCEPT, 0, NULL);
@@ -101,12 +101,16 @@ int main()
     start_performance_metrics();
 
     system("sudo nft add table inet myfilter");
-    system("sudo nft add chain inet myfilter prerouting { type filter hook prerouting priority 0 \\; }");
+    // system("sudo nft add chain inet myfilter prerouting { type filter hook prerouting priority 0 \\; }");
     system("sudo nft add chain inet myfilter input  { type filter hook input priority 0 \\; }");
 
-    system("sudo nft add rule inet myfilter prerouting queue num 0");
+    // system("sudo nft add rule inet myfilter prerouting queue num 0");
     system("sudo nft add rule inet myfilter input queue num 0");
-
+    
+    // system("sudo nft add table ip myfilter");
+    // system("sudo nft add chain ip myfilter prerouting { type filter hook prerouting priority -300 \\; }");
+    // system("sudo nft add rule ip myfilter prerouting queue num 0");
+    
     h = nfq_open();
     if (!h)
     {
