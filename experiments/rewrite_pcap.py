@@ -12,8 +12,7 @@ with PcapReader(input_pcap) as reader, PcapWriter(output_pcap, sync=True) as wri
         # Filter non-TCP packets with IP layer
         if IP in pkt and not pkt.haslayer(TCP):
             pkt[IP].dst = "192.168.0.104"
-            # del pkt[IP].chksum  # force recalculation
             pkt[Ether].dst = mac  # important!
-            del pkt[IP].chksum
+            del pkt[IP].chksum # force recalculation
             del pkt[Ether].chksum
             writer.write(pkt)
