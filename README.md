@@ -16,6 +16,12 @@ To compile the code:
 gcc -o os-ids main.c logger.c cidr_trie.c emerging_threats_updater.c suricata_parser.c -lnetfilter_queue
 ```
 
+To run the OS-IDS:
+
+```
+sudo ./os-ids
+```
+
 ## NFTABLES setup
 
 > [!WARNING]
